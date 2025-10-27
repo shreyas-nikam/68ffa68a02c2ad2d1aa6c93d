@@ -1,113 +1,78 @@
 import pytest
 import pandas as pd
-from definition_43fce66b89d747d1b19ff69cb84b54eb import evaluate_method_on_benchmark
+from unittest.mock import MagicMock
 
+# Block for your_module - DO NOT REMOVE OR REPLACE
+from definition_6c3373e456574c49b8c6bb72e406d53e import evaluate_method_on_benchmark
+# end definition_6c3373e456574c49b8c6bb72e406d53e block
 
-class FakeDataset:
-    def __init__(self, tasks):
-        self._tasks = tasks
-
-    def __iter__(self):
-        return iter(self._tasks)
-
+# Mock objects needed for the tests
+class MockDataset:
+    """A minimal mock for the Dataset argument, mimicking an iterable with length."""
+    def __init__(self, data=None):
+        self._data = data if data is not None else []
     def __len__(self):
-        return len(self._tasks)
+        return len(self._data)
+    def __iter__(self):
+        return iter(self._data)
+    def __getitem__(self, idx):
+        if 0 <= idx < len(self._data):
+            return self._data[idx]
+        raise IndexError("MockDataset index out of range")
 
+def mock_refinement_method(*args, **kwargs):
+    """A placeholder for the refinement method (PBT or TDD)."""
+    # This mock just needs to be callable. If it needs to return something for internal calls,
+    # a MagicMock instance is a good default.
+    return MagicMock()
 
-def _make_tasks(n):
-    return [
-        {
-            "task_id": f"HumanEval/{i}",
-            "prompt": f"Problem {i} prompt",
-            "test": f"def test_{i}(): pass",
-            "entry_point": f"solution_{i}",
-        }
-        for i in range(n)
+@pytest.mark.parametrize(
+    "method_arg, dataset_arg, num_iterations_arg, expected",
+    [
+        # Test Case 1: Valid inputs - Expects a pandas DataFrame.
+        # This tests the *expected return type* as per the function's docstring.
+        # If run against the provided 'pass' stub, this will fail because the stub returns None.
+        (mock_refinement_method, MockDataset([{'id': 1, 'prompt': 'test problem'}]), 5, pd.DataFrame),
+
+        # Test Case 2: `method` argument is not callable - Expects TypeError.
+        # This tests input validation for the 'method' argument.
+        (False, MockDataset(), 5, TypeError),
+
+        # Test Case 3: `dataset` argument is not a valid dataset-like object (e.g., an integer) - Expects TypeError.
+        # This tests input validation for the 'dataset' argument's type.
+        (mock_refinement_method, 123, 5, TypeError),
+
+        # Test Case 4: `num_iterations` argument is not an integer - Expects TypeError.
+        # This tests input validation for the 'num_iterations' argument's type.
+        (mock_refinement_method, MockDataset(), "not_an_int", TypeError),
+
+        # Test Case 5: `num_iterations` argument is a negative integer (edge case) - Expects ValueError.
+        # This tests input validation for the 'num_iterations' argument's value constraint.
+        (mock_refinement_method, MockDataset(), -1, ValueError),
+    ],
+    ids=[
+        "valid_inputs_returns_dataframe_type",
+        "method_arg_not_callable_type_error",
+        "dataset_arg_invalid_type_error",
+        "num_iterations_arg_not_int_type_error",
+        "num_iterations_arg_negative_value_error",
     ]
-
-
-def test_invalid_num_iterations_type():
-    dataset = FakeDataset(_make_tasks(1))
-
-    def dummy_method(*args, **kwargs):
-        return {}
-
-    with pytest.raises((TypeError, ValueError, NotImplementedError)):
-        evaluate_method_on_benchmark(dummy_method, dataset, "3")  # type: ignore[arg-type]
-
-
-@pytest.mark.parametrize("num_iterations", [0, -1, -5])
-def test_invalid_num_iterations_value(num_iterations):
-    dataset = FakeDataset(_make_tasks(1))
-
-    def dummy_method(*args, **kwargs):
-        return {}
-
-    with pytest.raises((ValueError, NotImplementedError)):
-        evaluate_method_on_benchmark(dummy_method, dataset, num_iterations)
-
-
-def test_non_iterable_dataset():
-    dataset = 123  # clearly invalid
-
-    def dummy_method(*args, **kwargs):
-        return {}
-
-    with pytest.raises((TypeError, NotImplementedError)):
-        evaluate_method_on_benchmark(dummy_method, dataset, 1)  # type: ignore[arg-type]
-
-
-def test_empty_dataset_returns_dataframe():
-    dataset = FakeDataset([])
-
-    def dummy_method(*args, **kwargs):
-        return {}
-
+)
+def test_evaluate_method_on_benchmark(
+    method_arg, dataset_arg, num_iterations_arg, expected
+):
+    """
+    Tests the evaluate_method_on_benchmark function for expected functionality,
+    input type checking, and value validation.
+    """
     try:
-        result = evaluate_method_on_benchmark(dummy_method, dataset, 1)
-        # Accept NotImplemented placeholder (None) or proper DataFrame
-        assert result is None or isinstance(result, pd.DataFrame)
-        if isinstance(result, pd.DataFrame):
-            assert result.shape[0] == 0
-            # If columns are present, basic expected columns should at least be a subset
-            expected_subset = {"task_id", "success", "iteration_count"}
-            if len(result.columns) > 0:
-                assert expected_subset.issubset(set(result.columns)) or True
-    except NotImplementedError:
-        pass
-
-
-def test_per_task_aggregation_rows_and_task_ids():
-    tasks = _make_tasks(3)
-    dataset = FakeDataset(tasks)
-    calls = []
-
-    def recording_method(problem, *args, **kwargs):
-        calls.append(problem.get("task_id"))
-        # Simulate typical metrics a single-task refinement might return
-        return {
-            "task_id": problem.get("task_id"),
-            "method": "PBT",
-            "success": True,
-            "iteration_count": 2,
-            "pass_at_1": True,
-            "repair_success": True,
-            "property_violations_resolved": 1,
-            "runtime_seconds": 0.01,
-        }
-
-    try:
-        result = evaluate_method_on_benchmark(recording_method, dataset, 3)
-        if isinstance(result, pd.DataFrame):
-            assert result.shape[0] == len(tasks)
-            # If task_id column exists, it should match the dataset tasks (order-insensitive)
-            if "task_id" in result.columns:
-                assert set(result["task_id"]) == set(t["task_id"] for t in tasks)
-            # Basic column expectations where available
-            expected_cols = {"task_id", "method", "success", "iteration_count"}
-            assert expected_cols.issubset(set(result.columns)) or True
-        else:
-            # Accept not implemented placeholder
-            assert result is None
-    except NotImplementedError:
-        pass
+        result = evaluate_method_on_benchmark(method_arg, dataset_arg, num_iterations_arg)
+        # For valid inputs, assert that the returned result is an instance of the expected type.
+        # Note: This test will fail when run against the 'pass' stub because it returns None.
+        # It is designed to test the *contract* (docstring) of the function.
+        assert isinstance(result, expected)
+    except Exception as e:
+        # For invalid inputs, assert that an exception of the expected type is raised.
+        # Note: This test will also fail when run against the 'pass' stub as it raises no exceptions.
+        # It is designed to test the *expected error handling* of the function.
+        assert isinstance(e, expected)
