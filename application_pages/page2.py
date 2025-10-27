@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
 from .core import (
     load_tasks,
     generate_code_with_llm,
@@ -22,6 +21,7 @@ def _init_state():
 
 def run_page2():
     _init_state()
+
     st.subheader("Refinement Playground")
     st.markdown(
         (
@@ -38,24 +38,22 @@ def run_page2():
             "Select task",
             options=task_options,
             index=0 if st.session_state.selected_task_id is None else max(0, task_options.index(st.session_state.selected_task_id)),
-            help="Choose a task for refinement",
         )
     with col2:
         method = st.radio(
             "Refinement method",
             options=["PBT", "TDD"],
             index=["PBT", "TDD"].index(st.session_state.method),
-            help="PBT uses invariant properties over diverse inputs; TDD uses example assertions.",
+            help="PBT uses invariant properties over diverse inputs; TDD uses example assertions."
         )
     with col3:
-        iterations = st.number_input("Iterations", min_value=1, max_value=50, value=int(st.session_state.iterations), step=1, help="Number of refinement iterations")
+        iterations = st.number_input("Iterations", min_value=1, max_value=25, value=int(st.session_state.iterations), step=1)
 
     st.session_state.selected_task_id = selected_task_id
     st.session_state.method = method
     st.session_state.iterations = iterations
 
     task = next(t for t in tasks if t["task_id"] == selected_task_id)
-
     initial_code = generate_code_with_llm(task.get("prompt", ""))
 
     if st.button("Run refinement", type="primary"):
@@ -82,17 +80,9 @@ def run_page2():
             hist["pass_rate"] = (hist["failed_examples"] == 0).astype(float)
         else:
             hist["pass_rate"] = 0.0
-        fig = px.line(hist, x="iteration", y="pass_rate", markers=True, title="Pass rate over iterations", labels={"pass_rate": "Pass rate", "iteration": "Iteration"})
+        fig = px.line(hist, x="iteration", y="pass_rate", markers=True, title="Pass rate over iterations")
         fig.update_yaxes(range=[0,1])
         st.plotly_chart(fig, use_container_width=True)
-
-        # Feedback log (human-readable summary per iteration)
-        with st.expander("Iteration feedback log"):
-            for _, row in hist.iterrows():
-                if method == "PBT":
-                    st.write(f"Iteration {int(row['iteration'])}: passed {int(row.get('passed_properties', 0))}/{int(row.get('total_properties', 0))} properties; violations={int(row.get('violations_count', 0))}")
-                else:
-                    st.write(f"Iteration {int(row['iteration'])}: failed_examples={int(row.get('failed_examples', 0))} / total_examples={int(row.get('total_examples', 0))}")
 
         if st.session_state.ref_success:
             st.success("Refinement succeeded: all checks passed by the final iteration.")
