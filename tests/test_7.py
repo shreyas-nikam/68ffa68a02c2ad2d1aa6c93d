@@ -1,59 +1,139 @@
 import pytest
-from definition_dbe06f375c3249f89c23fd102644778d import iterate_tdd_refinement
-import copy
+from unittest.mock import MagicMock, patch
 
-def build_problem(overrides=None):
-    problem = {
-        "task_id": "HumanEval/000",
-        "prompt": "Write a function foo() that returns 42.",
-        "entry_point": "foo",
-        "test": """
+# --- Start of your_module block ---
+from definition_c303c1dea3914f658c3307f759795503 import iterate_tdd_refinement
+# --- End of your_module block ---
+
+# Mock DatasetEntry class for testing purposes
+class MockDatasetEntry:
+    def __init__(self, task_id, prompt, test, entry_point, canonical_solution=None):
+        self.task_id = task_id
+        self.prompt = prompt
+        self.test = test
+        self.entry_point = entry_point
+        self.canonical_solution = canonical_solution
+
+@pytest.fixture
+def mock_problem():
+    """A standard mock problem instance for HumanEval tasks."""
+    return MockDatasetEntry(
+        task_id="HumanEval/0",
+        prompt="Write a function to add two numbers.",
+        test="""
 def check(candidate):
-    assert candidate() == 42
-"""
-    }
-    if overrides:
-        problem.update(overrides)
-    return problem
+    assert candidate(1, 2) == 3
+    assert candidate(5, 5) == 10
+""",
+        entry_point="add",
+        canonical_solution="def add(a, b): return a + b"
+    )
 
-def test_returns_expected_summary_structure_on_valid_problem():
-    problem = build_problem()
-    result = iterate_tdd_refinement(problem)
-    assert isinstance(result, dict), "Expected a dict summary result"
-    # required fields
-    for key in ["task_id", "final_code", "success", "iteration_count", "failing_examples_over_time"]:
-        assert key in result, f"Missing key in summary: {key}"
-    assert isinstance(result["task_id"], str)
-    assert isinstance(result["final_code"], str)
-    assert isinstance(result["success"], bool)
-    assert isinstance(result["iteration_count"], int)
-    # failing_examples_over_time could be list or similar collection
-    assert isinstance(result["failing_examples_over_time"], (list, tuple))
-    # timing information: allow flexible key naming, but ensure at least one timing-related key exists
-    assert any("time" in k.lower() for k in result.keys()), "Expected timing information in the summary"
+@patch('definition_c303c1dea3914f658c3307f759795503.generate_code_with_llm')
+@patch('definition_c303c1dea3914f658c3307f759795503.run_tests')
+@patch('definition_c303c1dea3914f658c3307f759795503.refine_code_with_feedback')
+def test_successful_tdd_refinement(mock_refine_code_with_feedback, mock_run_tests, mock_generate_code_with_llm, mock_problem):
+    """
+    Tests that the TDD refinement process successfully converges after a few iterations.
+    It simulates an initial incorrect code that gets corrected after one refinement step.
+    """
+    # First attempt: LLM generates incorrect code
+    mock_generate_code_with_llm.return_value = "def add(a, b): return a - b"
+    # First test run: fails, provides feedback
+    mock_run_tests.side_effect = [
+        {"passed_public_tests": False, "feedback": "Test failed: add(1,2) should be 3, got -1.", "runtime_error": False},
+        # Second test run (after refinement): passes
+        {"passed_public_tests": True, "feedback": "All tests passed.", "runtime_error": False}
+    ]
+    # Refinement step: LLM produces correct code based on feedback
+    mock_refine_code_with_feedback.return_value = "def add(a, b): return a + b"
 
-@pytest.mark.parametrize("missing_key", ["task_id", "prompt", "entry_point", "test"])
-def test_raises_on_missing_required_fields(missing_key):
-    problem = build_problem()
-    problem.pop(missing_key)
-    with pytest.raises(Exception):
-        iterate_tdd_refinement(problem)
+    iterate_tdd_refinement(mock_problem)
 
-@pytest.mark.parametrize("bad_input", [None, 123, 3.14, "not a dataset entry", []])
-def test_raises_on_invalid_problem_type(bad_input):
-    with pytest.raises(Exception):
-        iterate_tdd_refinement(bad_input)
+    mock_generate_code_with_llm.assert_called_once_with(mock_problem.prompt)
+    assert mock_run_tests.call_count == 2
+    assert mock_refine_code_with_feedback.call_count == 1
+    mock_refine_code_with_feedback.assert_called_once_with(
+        "def add(a, b): return a - b", "Test failed: add(1,2) should be 3, got -1."
+    )
 
-def test_handles_empty_test_string():
-    problem = build_problem({"test": ""})
-    result = iterate_tdd_refinement(problem)
-    assert isinstance(result, dict)
-    assert "success" in result and isinstance(result["success"], bool)
 
-def test_does_not_mutate_input_problem():
-    problem = build_problem()
-    original = copy.deepcopy(problem)
-    try:
-        iterate_tdd_refinement(problem)
-    finally:
-        assert problem == original, "Function should not mutate the input problem object"
+@patch('definition_c303c1dea3914f658c3307f759795503.generate_code_with_llm')
+@patch('definition_c303c1dea3914f658c3307f759795503.run_tests')
+@patch('definition_c303c1dea3914f658c3307f759795503.refine_code_with_feedback')
+def test_initial_code_is_correct(mock_refine_code_with_feedback, mock_run_tests, mock_generate_code_with_llm, mock_problem):
+    """
+    Tests that if the initial code generated by the LLM is already correct,
+    the refinement loop finishes immediately after the first test run.
+    """
+    mock_generate_code_with_llm.return_value = "def add(a, b): return a + b"
+    mock_run_tests.return_value = {"passed_public_tests": True, "feedback": "All tests passed.", "runtime_error": False}
+
+    iterate_tdd_refinement(mock_problem)
+
+    mock_generate_code_with_llm.assert_called_once_with(mock_problem.prompt)
+    mock_run_tests.assert_called_once()
+    mock_refine_code_with_feedback.assert_not_called()
+
+
+@patch('definition_c303c1dea3914f658c3307f759795503.generate_code_with_llm')
+@patch('definition_c303c1dea3914f658c3307f759795503.run_tests')
+@patch('definition_c303c1dea3914f658c3307f759795503.refine_code_with_feedback')
+def test_tdd_refinement_fails_max_iterations(mock_refine_code_with_feedback, mock_run_tests, mock_generate_code_with_llm, mock_problem):
+    """
+    Tests that the refinement process stops after `max_iterations` if the LLM
+    fails to produce a correct solution within the allowed number of attempts.
+    (Assumes `iterate_tdd_refinement` has an internal `max_iterations`, e.g., 5, for this test).
+    """
+    mock_generate_code_with_llm.return_value = "def add(a, b): return 0 # Always wrong"
+    mock_run_tests.return_value = {"passed_public_tests": False, "feedback": "Still incorrect.", "runtime_error": False}
+    # Each refinement returns a subtly different but still incorrect code
+    mock_refine_code_with_feedback.side_effect = lambda code, feedback: f"{code} # Refined but still wrong based on '{feedback}'"
+
+    # Assuming `iterate_tdd_refinement` has an internal `max_iterations` of 5.
+    # This means 1 initial code generation + 4 refinement attempts.
+    # So `run_tests` will be called 5 times (once for initial, then 4 for refined codes).
+    # `refine_code_with_feedback` will be called 4 times.
+    iterate_tdd_refinement(mock_problem)
+
+    mock_generate_code_with_llm.assert_called_once_with(mock_problem.prompt)
+    assert mock_run_tests.call_count == 5
+    assert mock_refine_code_with_feedback.call_count == 4
+
+
+@patch('definition_c303c1dea3914f658c3307f759795503.generate_code_with_llm')
+def test_problem_missing_required_attribute(mock_generate_code_with_llm):
+    """
+    Tests that if the 'problem' object is missing a critical attribute like 'prompt',
+    an AttributeError is raised when the function tries to access it.
+    """
+    # Create a mock problem object that is intentionally missing the 'prompt' attribute
+    malformed_problem = MagicMock()
+    malformed_problem.task_id = "HumanEval/1"
+    # malformed_problem.prompt is missing
+    malformed_problem.test = "assert True" # Other attributes might be needed later, but should fail on prompt first
+    malformed_problem.entry_point = "dummy"
+
+    with pytest.raises(AttributeError, match="prompt"):
+        iterate_tdd_refinement(malformed_problem)
+
+    # `generate_code_with_llm` should not be called as the error occurs before it
+    mock_generate_code_with_llm.assert_not_called()
+
+
+@pytest.mark.parametrize("invalid_input", [
+    None,
+    "a simple string",
+    123,
+    [],
+    {}
+])
+def test_non_object_problem_input_raises_attribute_error(invalid_input):
+    """
+    Tests that passing non-object types (like None, string, int, list, dict) for the 'problem' argument
+    results in an AttributeError when `iterate_tdd_refinement` attempts to access 'problem.prompt'.
+    (This assumes the function relies on duck typing for `problem` attributes and does not
+    perform an explicit `isinstance(problem, DatasetEntry)` check at the start, which would raise a TypeError.)
+    """
+    with pytest.raises(AttributeError, match="has no attribute 'prompt'"):
+        iterate_tdd_refinement(invalid_input)
