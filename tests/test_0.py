@@ -1,82 +1,87 @@
-import sys
-import types
-import importlib
 import pytest
-from definition_bb81617c429e4f7093bd63fbc24f427b import load_humaneval_dataset
+from unittest.mock import patch, MagicMock
 
+# Block for your_module - DO NOT REMOVE or REPLACE
+from definition_07ba4fadc386475aad32d575aad0c9c8 import load_humaneval_dataset
+# End of your_module block
 
-class DummyDataset:
-    def __init__(self, columns=None, features=None):
-        # Either column_names or features may be present
-        self.column_names = columns or []
-        self.features = features
+# A simple mock class to represent the datasets.Dataset object for testing purposes.
+class MockDataset:
+    def __init__(self, data=None):
+        self.data = data if data is not None else []
 
+    def __len__(self):
+        return len(self.data)
 
-def _setup_fake_datasets(monkeypatch, return_value=None, side_effect=None):
-    fake_module = types.ModuleType("datasets")
-    calls = {"args": None, "kwargs": None}
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self.data[key]
+        raise TypeError(f"Dataset indices must be integers, not {type(key).__name__}")
 
-    def load_dataset(name, *args, **kwargs):
-        calls["args"] = (name,) + args
-        calls["kwargs"] = kwargs
-        if side_effect:
-            raise side_effect
-        return return_value
+    def __eq__(self, other):
+        # For comparison in tests, check if it's a MockDataset and has the same data.
+        return isinstance(other, MockDataset) and self.data == other.data
 
-    fake_module.load_dataset = load_dataset
+    def __repr__(self):
+        return f"MockDataset(data={self.data})"
 
-    # Access the target module to patch its imports if already loaded
-    target_module = importlib.import_module("definition_bb81617c429e4f7093bd63fbc24f427b")
-    if hasattr(target_module, "load_dataset"):
-        # from datasets import load_dataset
-        monkeypatch.setattr(target_module, "load_dataset", load_dataset, raising=True)
-    elif hasattr(target_module, "datasets"):
-        # import datasets
-        monkeypatch.setattr(target_module, "datasets", fake_module, raising=True)
-    else:
-        # Ensure that any future import datasets inside the function resolves here
-        monkeypatch.setitem(sys.modules, "datasets", fake_module)
-    return fake_module, calls
-
-
-def test_returns_test_split_and_calls_correct_dataset_name(monkeypatch):
-    dummy = DummyDataset(columns=["task_id", "prompt", "canonical_solution", "test", "entry_point"])
-    dataset_dict = {"test": dummy}
-    _, calls = _setup_fake_datasets(monkeypatch, return_value=dataset_dict)
+# Test Case 1: Expected functionality - successful load with a non-empty dataset
+@patch('datasets.load_dataset')
+def test_load_humaneval_dataset_success(mock_load_dataset):
+    mock_data = [{"task_id": "0", "prompt": "def add(a,b):\n    return a+b"}]
+    mock_load_dataset.return_value = MockDataset(mock_data)
 
     result = load_humaneval_dataset()
-    assert result is dummy
-    assert calls["args"] is not None
-    assert calls["args"][0] == "openai_humaneval"
 
+    # Assert that datasets.load_dataset was called exactly once with the correct dataset name
+    mock_load_dataset.assert_called_once_with("openai_humaneval")
+    # Assert that the result is an instance of our mock Dataset and its content matches
+    assert isinstance(result, MockDataset)
+    assert result == MockDataset(mock_data)
+    assert len(result) == 1
 
-def test_required_fields_present_in_returned_dataset(monkeypatch):
-    required = {"task_id", "prompt", "canonical_solution", "test", "entry_point"}
-    dummy = DummyDataset(columns=["task_id", "prompt", "canonical_solution", "test", "entry_point", "extra"])
-    dataset_dict = {"test": dummy}
-    _setup_fake_datasets(monkeypatch, return_value=dataset_dict)
+# Test Case 2: Edge case - successful load with an empty dataset
+@patch('datasets.load_dataset')
+def test_load_humaneval_dataset_empty(mock_load_dataset):
+    mock_load_dataset.return_value = MockDataset([])
 
-    ds = load_humaneval_dataset()
-    cols = set(getattr(ds, "column_names", []) or [])
-    if not cols and getattr(ds, "features", None) is not None:
-        try:
-            cols = set(ds.features.keys())
-        except Exception:
-            cols = set()
-    assert required.issubset(cols)
+    result = load_humaneval_dataset()
 
+    # Assert that datasets.load_dataset was called exactly once with the correct dataset name
+    mock_load_dataset.assert_called_once_with("openai_humaneval")
+    # Assert that an empty MockDataset was returned
+    assert isinstance(result, MockDataset)
+    assert result == MockDataset([])
+    assert len(result) == 0
 
-def test_missing_test_split_raises_error(monkeypatch):
-    dummy = DummyDataset(columns=["task_id", "prompt", "canonical_solution", "test", "entry_point"])
-    dataset_dict = {"validation": dummy}
-    _setup_fake_datasets(monkeypatch, return_value=dataset_dict)
+# Test Case 3: Edge case - error during dataset loading (e.g., connection issue, dataset not found)
+@patch('datasets.load_dataset')
+def test_load_humaneval_dataset_loading_error(mock_load_dataset):
+    # Configure the mock to raise an exception when called
+    mock_load_dataset.side_effect = Exception("Failed to load 'openai_humaneval' dataset due to network error.")
 
-    with pytest.raises(Exception):
+    # Assert that calling the function raises the expected exception
+    with pytest.raises(Exception) as excinfo:
         load_humaneval_dataset()
 
+    # Assert that datasets.load_dataset was called
+    mock_load_dataset.assert_called_once_with("openai_humaneval")
+    # Assert the specific error message to confirm the correct error path
+    assert "Failed to load 'openai_humaneval' dataset" in str(excinfo.value)
 
-def test_load_dataset_exception_propagates(monkeypatch):
-    _setup_fake_datasets(monkeypatch, side_effect=RuntimeError("network error"))
-
-    with pytest.raises(RuntimeError):
-        load_humaneval_dataset()
+# Test Case 4: Edge case - calling the function with unexpected arguments (should raise TypeError)
+@pytest.mark.parametrize(
+    "arg_to_pass, expected_exception",
+    [
+        ("unexpected_arg", TypeError),  # Attempting to pass a string
+        (123, TypeError),               # Attempting to pass an integer
+    ]
+)
+def test_load_humaneval_dataset_with_arguments(arg_to_pass, expected_exception):
+    # The function `load_humaneval_dataset()` is defined to take no arguments.
+    # Therefore, attempting to call it with any argument should result in a TypeError.
+    with pytest.raises(expected_exception):
+        # We explicitly disable pylint for this line because we are intentionally
+        # calling the function with an incorrect number of arguments to test its robustness.
+        # pylint: disable=too-many-function-args
+        load_humaneval_dataset(arg_to_pass)
