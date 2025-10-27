@@ -29,7 +29,7 @@ def run_page1():
     st.caption("Browse tasks, generate initial code, inspect properties and tests, and run quick checks.")
 
     tasks, source = load_tasks()
-    st.info(f"Task source: {source}")
+    st.info("Task source: " + str(source))
 
     task_options = [t["task_id"] for t in tasks]
     default_index = 0 if st.session_state.selected_task_id is None else max(0, task_options.index(st.session_state.selected_task_id))
@@ -52,7 +52,6 @@ def run_page1():
             "Business rationale: PBT increases input diversity, reducing escaped defects and improving reliability metrics."
         )
 
-    # Generate initial code
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
         if st.button("Generate candidate code", type="primary", help="Create an initial solution with a heuristic LLM-like generator"):
@@ -71,7 +70,6 @@ def run_page1():
     code = st.text_area("Code", value=st.session_state.candidate_code, height=240, label_visibility="collapsed", help="You may edit code before running checks")
     st.session_state.candidate_code = code
 
-    # Show traditional tests and properties with tabs
     tab_tests, tab_props = st.tabs(["TDD tests", "PBT properties"])
     with tab_tests:
         st.code(task.get("test", ""), language="python")
@@ -82,7 +80,6 @@ def run_page1():
             st.code(s, language="python")
         st.caption("Heuristically generated properties that should hold for broad inputs.")
 
-    # Run buttons
     c1, c2 = st.columns([1, 1])
     with c1:
         if st.button("Run PBT checks", help="Execute property functions over a diverse input set"):
@@ -94,19 +91,17 @@ def run_page1():
             res = run_tests(code, [task.get("test", "")], [], entry_point=task.get("entry_point", "solution"), mode="TDD")
             st.session_state.tdd_last_result = res
 
-    # Results rendering
     if st.session_state.pbt_last_result:
         res = st.session_state.pbt_last_result
         det = res.get("details", {}) if isinstance(res, dict) else {}
         total = int(det.get("total_properties", 0))
         passed = int(det.get("passed_properties", 0))
         rate = (passed / total) if total else 0.0
-        st.metric("PBT pass rate", f"{rate:.2%}")
+        st.metric("PBT pass rate", ("{:.2%}").format(rate))
         st.write("Violations (sample):")
         viol = det.get("violations", []) if det else []
         dfv = pd.DataFrame(viol)
         st.dataframe(dfv.head(50))
-        # Visualization: approximate per-property pass trend by input index (synthetic)
         n_inputs = len(generate_pbt_inputs(task.get("prompt", "")))
         pass_counts = max(0, total - len(viol))
         df_line = pd.DataFrame({"input_idx": list(range(n_inputs)), "pass_count": [pass_counts] * n_inputs})
