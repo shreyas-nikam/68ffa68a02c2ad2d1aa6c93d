@@ -23,9 +23,12 @@ def _init_state():
 def run_page2():
     _init_state()
     st.subheader("Refinement Playground")
-    st.markdown((
-        "Run iterative refinement using either Property-Based Testing (PBT) or example tests (TDD). "
-        "The app collects per-iteration results and shows whether the candidate converges to a passing solution."))
+    st.markdown(
+        (
+            "Run iterative refinement using either Property-Based Testing (PBT) or example tests (TDD). "
+            "The app collects per-iteration results and shows whether the candidate converges to a passing solution."
+        )
+    )
 
     tasks, _ = load_tasks()
     task_options = [t["task_id"] for t in tasks]
@@ -35,16 +38,17 @@ def run_page2():
             "Select task",
             options=task_options,
             index=0 if st.session_state.selected_task_id is None else max(0, task_options.index(st.session_state.selected_task_id)),
+            help="Choose a task for refinement",
         )
     with col2:
         method = st.radio(
             "Refinement method",
             options=["PBT", "TDD"],
             index=["PBT", "TDD"].index(st.session_state.method),
-            help="PBT uses invariant properties over diverse inputs; TDD uses example assertions."
+            help="PBT uses invariant properties over diverse inputs; TDD uses example assertions.",
         )
     with col3:
-        iterations = st.number_input("Iterations", min_value=1, max_value=25, value=int(st.session_state.iterations), step=1)
+        iterations = st.number_input("Iterations", min_value=1, max_value=50, value=int(st.session_state.iterations), step=1, help="Number of refinement iterations")
 
     st.session_state.selected_task_id = selected_task_id
     st.session_state.method = method
@@ -70,6 +74,7 @@ def run_page2():
         st.write("Duration (s):", round(st.session_state.ref_duration, 3))
         st.dataframe(st.session_state.ref_history)
 
+        # Visualization per iteration (pass indicator)
         hist = st.session_state.ref_history.copy()
         if method == "PBT" and "passed_properties" in hist.columns and "total_properties" in hist.columns:
             hist["pass_rate"] = hist["passed_properties"] / hist["total_properties"].replace(0, np.nan)
@@ -77,9 +82,17 @@ def run_page2():
             hist["pass_rate"] = (hist["failed_examples"] == 0).astype(float)
         else:
             hist["pass_rate"] = 0.0
-        fig = px.line(hist, x="iteration", y="pass_rate", markers=True, title="Pass rate over iterations")
+        fig = px.line(hist, x="iteration", y="pass_rate", markers=True, title="Pass rate over iterations", labels={"pass_rate": "Pass rate", "iteration": "Iteration"})
         fig.update_yaxes(range=[0,1])
         st.plotly_chart(fig, use_container_width=True)
+
+        # Feedback log (human-readable summary per iteration)
+        with st.expander("Iteration feedback log"):
+            for _, row in hist.iterrows():
+                if method == "PBT":
+                    st.write(f"Iteration {int(row['iteration'])}: passed {int(row.get('passed_properties', 0))}/{int(row.get('total_properties', 0))} properties; violations={int(row.get('violations_count', 0))}")
+                else:
+                    st.write(f"Iteration {int(row['iteration'])}: failed_examples={int(row.get('failed_examples', 0))} / total_examples={int(row.get('total_examples', 0))}")
 
         if st.session_state.ref_success:
             st.success("Refinement succeeded: all checks passed by the final iteration.")
@@ -95,7 +108,10 @@ def run_page2():
             mime="text/x-python",
         )
 
-    st.markdown((
-        "Guidance: In PBT, we search a larger input space, approximating the condition $\\forall I \\in \\mathcal{D}$. "
-        "In TDD, we focus on a labeled set $T_h = \\{(I_j, O_j)\\}$. Failure signals guide automatic heuristic repairs; "
-        "your edits to the code can further improve outcomes."))
+    st.markdown(
+        (
+            "Guidance: In PBT, we search a larger input space, approximating the condition $\\forall I \\in \\mathcal{D}$. "
+            "In TDD, we focus on a labeled set $T_h = \\{(I_j, O_j)\\}$. Failure signals guide automatic heuristic repairs; "
+            "your edits to the code can further improve outcomes."
+        )
+    )
