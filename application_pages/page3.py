@@ -29,7 +29,7 @@ def _compute_metrics(results_df: pd.DataFrame) -> pd.DataFrame:
     df["method"] = df["method"].map({
         "iterate_pbt_refinement": "PBT",
         "iterate_tdd_refinement": "TDD",
-    }).fillna(df["method"])
+    }).fillna(df["method"]) 
     pass1 = (
         df[df["iteration"] == 1]
         .groupby("method")
