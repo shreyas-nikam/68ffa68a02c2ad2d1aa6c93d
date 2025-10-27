@@ -2,13 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-
-from .core import (
-    load_tasks,
-    generate_code_with_llm,
-    iterate_pbt_refinement,
-    iterate_tdd_refinement,
-)
+import plotly.graph_objects as go
 
 
 def _init_state():
@@ -21,6 +15,13 @@ def _init_state():
 
 
 def run_page2():
+    from .core import (
+        load_tasks,
+        generate_code_with_llm,
+        iterate_pbt_refinement,
+        iterate_tdd_refinement,
+    )
+
     _init_state()
     st.subheader("Refinement Playground")
     st.markdown(
@@ -44,12 +45,10 @@ def run_page2():
             "Refinement method",
             options=["PBT", "TDD"],
             index=["PBT", "TDD"].index(st.session_state.method),
-            help="PBT uses invariant properties over diverse inputs; TDD uses example assertions.",
+            help="PBT uses invariant properties over diverse inputs; TDD uses example assertions."
         )
     with col3:
-        iterations = st.number_input(
-            "Iterations", min_value=1, max_value=25, value=int(st.session_state.iterations), step=1
-        )
+        iterations = st.number_input("Iterations", min_value=1, max_value=25, value=int(st.session_state.iterations), step=1)
 
     st.session_state.selected_task_id = selected_task_id
     st.session_state.method = method
@@ -83,7 +82,7 @@ def run_page2():
         else:
             hist["pass_rate"] = 0.0
         fig = px.line(hist, x="iteration", y="pass_rate", markers=True, title="Pass rate over iterations")
-        fig.update_yaxes(range=[0, 1])
+        fig.update_yaxes(range=[0,1])
         st.plotly_chart(fig, use_container_width=True)
 
         if st.session_state.ref_success:
@@ -96,7 +95,7 @@ def run_page2():
         st.download_button(
             label="Download final refined code",
             data=st.session_state.ref_final_code,
-            file_name=(task.get('entry_point', 'solution') + "_refined.py"),
+            file_name=(task.get('entry_point','solution') + "_refined.py"),
             mime="text/x-python",
         )
 
