@@ -2,15 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-from .core import (
-    load_tasks,
-    generate_code_with_llm,
-    iterate_pbt_refinement,
-    iterate_tdd_refinement,
-    evaluate_method_on_benchmark,
-    visualize_performance_comparison,
-    visualize_test_coverage_and_feedback,
-)
 
 
 def _init_state():
@@ -44,14 +35,21 @@ def _compute_metrics(results_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def run_page3():
-    _init_state()
-    st.subheader("Benchmark & Insights")
-    st.markdown(
-        "Run a small benchmark to compare PBT and TDD across tasks. Visualize pass rate over iterations, pass@1, and repair success."
+    from .core import (
+        load_tasks,
+        iterate_pbt_refinement,
+        iterate_tdd_refinement,
+        evaluate_method_on_benchmark,
+        visualize_performance_comparison,
+        visualize_test_coverage_and_feedback,
     )
 
+    _init_state()
+    st.subheader("Benchmark & Insights")
+    st.markdown("Run a small benchmark to compare PBT and TDD across tasks. Visualize pass rate over iterations, pass@1, and repair success.")
+
     tasks, source = load_tasks()
-    st.caption("Dataset source: " + str(source))
+    st.caption(f"Dataset source: {source}")
 
     c1, c2 = st.columns([1, 1])
     with c1:
@@ -129,15 +127,10 @@ def run_page3():
 
     with st.expander("Definitions and formulas"):
         st.markdown(
-            "- pass@1: Probability that the first refinement attempt passes. Formally, $\\mathbb{P}[\\text{pass at } i=1]$.\n"
-            "- Repair success rate: Fraction of tasks where any iteration achieves pass by the end.\n"
-            "- TDD correctness criterion: $C(I_j)=O_j$ for labeled examples $(I_j,O_j)$.\n"
-            "- PBT criterion across domain $\\mathcal{D}$: $P(C, I)=\\text{True}$."
+            "- pass@1: Probability that the first refinement attempt passes. Formally, $\\mathbb{P}[\\text{pass at } i=1]$.\n- Repair success rate: Fraction of tasks where any iteration achieves pass by the end.\n- TDD correctness criterion: $C(I_j)=O_j$ for labeled examples $(I_j,O_j)$.\n- PBT criterion across domain $\\mathcal{D}$: $P(C, I)=\\text{True}$."
         )
         st.latex(r"\\forall (I_j, O_j) \\in T_h,\\ C(I_j) = O_j")
         st.latex(r"\\forall I \\in \\mathcal{D},\\ P(C, I) = \\text{True}")
         st.latex(r"\\text{Pass} := \\bigwedge_{\\forall i} C(I_i) = O_i \\wedge \\bigwedge_{\\forall P_k} P_k(C, I_k) = \\text{True}")
 
-    st.info(
-        "Insights: PBT often detects invariant violations on corner cases that TDD misses, improving robustness and reducing escaped defects in production."
-    )
+    st.info("Insights: PBT often detects invariant violations on corner cases that TDD misses, improving robustness and reducing escaped defects in production.")
