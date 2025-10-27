@@ -1,85 +1,39 @@
 import pytest
 import pandas as pd
-import numpy as np
-from matplotlib.figure import Figure
-from definition_efb5818ae1b44ed5a532c1cb7601731c import visualize_test_coverage_and_feedback
+from definition_106b86c13d204ba88ca5b401cb4f9bb5 import visualize_test_coverage_and_feedback
 
-
-def _assert_fig_or_none(obj):
-    # Helper to assert return type and close figures to prevent resource leaks
-    if isinstance(obj, Figure):
-        import matplotlib.pyplot as plt
-        plt.close(obj)
-        return True
-    return obj is None
-
-
-def test_valid_dataframe_returns_figure_or_none():
-    df = pd.DataFrame({
-        "task_id": ["t1", "t1", "t2", "t2"],
-        "iteration": [1, 2, 1, 2],
-        "method": ["PBT", "PBT", "TDD", "TDD"],
-        "property_violations": [3, 1, 0, 2],
-        "example_failures": [1, 0, 2, 0],
-        "input_diversity": [10, 15, 5, 7],
-        "timestamp": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-01", "2025-01-02"]),
-    })
-    res = visualize_test_coverage_and_feedback(df)
-    assert _assert_fig_or_none(res)
-
-
-def test_empty_dataframe_handled_gracefully():
-    df_empty = pd.DataFrame(columns=[
-        "task_id", "iteration", "method",
-        "property_violations", "example_failures",
-        "input_diversity", "timestamp"
-    ])
-    try:
-        res = visualize_test_coverage_and_feedback(df_empty)
-        assert _assert_fig_or_none(res)
-    except Exception as e:
-        # Accept reasonable validation error types
-        assert isinstance(e, (ValueError, KeyError))
-
-
-def test_nan_values_handled():
-    df_nan = pd.DataFrame({
-        "task_id": ["t1", "t2", "t3"],
-        "iteration": [1, 2, 3],
-        "method": ["PBT", "TDD", "PBT"],
-        "property_violations": [np.nan, 2, 0],
-        "example_failures": [1, np.nan, 0],
-        "input_diversity": [10, 15, np.nan],
-        "timestamp": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
-    })
-    try:
-        res = visualize_test_coverage_and_feedback(df_nan)
-        assert _assert_fig_or_none(res)
-    except Exception as e:
-        # Accept reasonable validation error types when NaNs are not supported
-        assert isinstance(e, (ValueError, KeyError))
-
-
-@pytest.mark.parametrize("bad_input, expected_exception", [
+@pytest.mark.parametrize("results_df_input, expected_result", [
+    # Test 1: Valid DataFrame with typical data and expected columns.
+    # The function should run successfully and return None.
+    (pd.DataFrame({
+        'method': ['PBT', 'TDD', 'PBT', 'TDD'],
+        'iterations': [5, 10, 3, 7],
+        'pass_rate': [0.8, 0.6, 0.9, 0.5],
+        'violation_frequency': [0.1, 0.3, 0.05, 0.2],
+        'feedback_efficiency': [0.95, 0.85, 0.98, 0.80]
+    }), None),
+    # Test 2: Empty DataFrame.
+    # A robust visualization function should handle this gracefully (e.g., show empty plots)
+    # without raising an error. It should return None.
+    (pd.DataFrame(), None),
+    # Test 3: Non-DataFrame input (e.g., None).
+    # The function expects a pandas DataFrame; passing None should result in a TypeError.
     (None, TypeError),
-    (123, TypeError),
-    ("not a dataframe", TypeError),
+    # Test 4: Non-DataFrame input (e.g., a list).
+    # Similar to Test 3, passing a list should result in a TypeError.
+    ([1, 2, 3], TypeError),
+    # Test 5: DataFrame with missing critical columns.
+    # The function's purpose implies it relies on specific columns for visualization.
+    # If key columns (e.g., 'method', 'pass_rate') are missing, it should ideally raise a ValueError.
+    (pd.DataFrame({'id': [1, 2], 'data': ['A', 'B']}), ValueError),
 ])
-def test_invalid_inputs_raise_type_errors(bad_input, expected_exception):
-    with pytest.raises(expected_exception):
-        visualize_test_coverage_and_feedback(bad_input)
-
-
-def test_missing_required_columns_errors_or_handles():
-    df_missing = pd.DataFrame({
-        "task_id": ["t1", "t2"],
-        # Missing: example_failures, input_diversity, timestamp
-        "property_violations": [1, 3],
-    })
+def test_visualize_test_coverage_and_feedback(results_df_input, expected_result):
     try:
-        res = visualize_test_coverage_and_feedback(df_missing)
-        # If implementation is lenient, it may still return a figure or None
-        assert _assert_fig_or_none(res)
+        # Call the function and capture its return value
+        actual_return_value = visualize_test_coverage_and_feedback(results_df_input)
+        # If no exception was raised, assert the return value.
+        # For this function, successful execution means it returns None.
+        assert actual_return_value is expected_result
     except Exception as e:
-        assert isinstance(e, (KeyError, ValueError))
-
+        # If an exception was raised, assert that it matches the expected exception type.
+        assert isinstance(e, expected_result)
