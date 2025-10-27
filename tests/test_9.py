@@ -1,53 +1,105 @@
 import pytest
 import pandas as pd
-import matplotlib
-matplotlib.use("Agg")
+from unittest import mock
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
-from definition_f1382ca987014774af99ac49ff82df95 import visualize_performance_comparison
+import seaborn as sns
 
-def build_valid_df():
-    data = [
-        {"method": "PBT", "task_id": "task_1", "iteration_count": 1, "success": False, "pass_at_1": 0.2, "repair_success": 0},
-        {"method": "PBT", "task_id": "task_1", "iteration_count": 2, "success": True, "pass_at_1": 0.6, "repair_success": 1},
-        {"method": "TDD", "task_id": "task_1", "iteration_count": 1, "success": False, "pass_at_1": 0.1, "repair_success": 0},
-        {"method": "TDD", "task_id": "task_1", "iteration_count": 2, "success": True, "pass_at_1": 0.4, "repair_success": 1},
-        {"method": "PBT", "task_id": "task_2", "iteration_count": 1, "success": False, "pass_at_1": 0.3, "repair_success": 0},
-        {"method": "TDD", "task_id": "task_2", "iteration_count": 1, "success": False, "pass_at_1": 0.15, "repair_success": 0},
-    ]
+# Keep the definition_44ae778860f04b9584a0b9a65d6cb17e block as it is. DO NOT REPLACE or REMOVE the block.
+from definition_44ae778860f04b9584a0b9a65d6cb17e import visualize_performance_comparison
+
+
+@pytest.fixture
+def sample_results_df():
+    """Provides a sample DataFrame for testing visualization."""
+    data = {
+        'Iteration': [1, 1, 2, 2, 3, 3, 1, 1, 2, 2, 3, 3],
+        'Method': ['PBT', 'TDD', 'PBT', 'TDD', 'PBT', 'TDD', 'PBT', 'TDD', 'PBT', 'TDD', 'PBT', 'TDD'],
+        'Metric': ['Pass Rate', 'Pass Rate', 'Pass Rate', 'Pass Rate', 'Pass Rate', 'Pass Rate',
+                   'Repair Success', 'Repair Success', 'Repair Success', 'Repair Success', 'Repair Success', 'Repair Success'],
+        'Value': [0.7, 0.5, 0.8, 0.6, 0.9, 0.75, 0.6, 0.4, 0.7, 0.5, 0.8, 0.65]
+    }
     return pd.DataFrame(data)
 
-def build_missing_cols_df():
-    df = build_valid_df().drop(columns=["pass_at_1"])
-    return df
+@pytest.fixture
+def empty_results_df():
+    """Provides an empty DataFrame with expected columns."""
+    return pd.DataFrame(columns=['Iteration', 'Method', 'Metric', 'Value'])
 
-def build_single_method_df():
-    df = build_valid_df()
-    return df[df["method"] == "PBT"].reset_index(drop=True)
+@pytest.fixture
+def df_missing_columns():
+    """Provides a DataFrame with missing expected columns."""
+    data = {
+        'UnexpectedColumn1': [1, 2, 3],
+        'UnexpectedColumn2': ['A', 'B', 'C']
+    }
+    return pd.DataFrame(data)
 
-def build_empty_df():
-    cols = ["method", "task_id", "iteration_count", "success", "pass_at_1", "repair_success"]
-    return pd.DataFrame(columns=cols)
+def test_visualize_performance_comparison_success(sample_results_df):
+    """
+    Tests if the visualization function completes successfully and calls expected plotting functions
+    with a well-formed DataFrame.
+    """
+    with mock.patch('seaborn.lineplot') as mock_lineplot, \
+         mock.patch('seaborn.barplot') as mock_barplot, \
+         mock.patch('matplotlib.pyplot.show') as mock_show, \
+         mock.patch('matplotlib.pyplot.figure') as mock_figure: # Mock figure creation
+        
+        visualize_performance_comparison(sample_results_df)
 
-@pytest.mark.parametrize("input_data, spec", [
-    (build_valid_df, {"accept_returns": (type(None), Figure)}),
-    (build_missing_cols_df, {"expect_exception": (ValueError, KeyError)}),
-    ([1, 2, 3], {"expect_exception": (TypeError,)}),
-    (build_single_method_df, {"accept_returns": (type(None), Figure)}),
-    (build_empty_df, {"accept_returns": (type(None), Figure), "expect_exception": (ValueError,)}),
-])
-def test_visualize_performance_comparison(input_data, spec):
-    try:
-        df_or_input = input_data() if callable(input_data) else input_data
-        result = visualize_performance_comparison(df_or_input)
-        if "accept_returns" in spec:
-            assert isinstance(result, spec["accept_returns"])
-        else:
-            assert "expect_exception" not in spec, "Expected an exception but function returned successfully."
-    except Exception as e:
-        if "expect_exception" in spec:
-            assert isinstance(e, spec["expect_exception"])
-        else:
-            raise
-    finally:
-        plt.close("all")
+        # Based on the notebook spec, both line plots (over iterations) and bar charts (summary metrics)
+        # are expected.
+        assert mock_lineplot.called, "seaborn.lineplot was not called"
+        assert mock_barplot.called, "seaborn.barplot was not called"
+        assert mock_show.called, "matplotlib.pyplot.show() was not called"
+        assert mock_figure.called, "matplotlib.pyplot.figure() was not called"
+
+
+def test_visualize_performance_comparison_empty_df(empty_results_df):
+    """
+    Tests if the visualization function handles an empty DataFrame gracefully without raising errors.
+    It should not crash, even if no plots are generated.
+    """
+    with mock.patch('seaborn.lineplot') as mock_lineplot, \
+         mock.patch('seaborn.barplot') as mock_barplot, \
+         mock.patch('matplotlib.pyplot.show') as mock_show:
+        
+        try:
+            visualize_performance_comparison(empty_results_df)
+        except Exception as e:
+            pytest.fail(f"visualize_performance_comparison raised an unexpected error with empty DataFrame: {e}")
+        
+        # Depending on implementation, plotting functions might or might not be called.
+        # The key is that it completes without error.
+        # For an empty DF, it's reasonable to expect no actual plots, so lineplot/barplot might not be called
+        # but plt.show() could still be called if a figure was created.
+        assert not mock_lineplot.called or not mock_barplot.called, "Plotting functions were unexpectedly called with empty data"
+
+
+def test_visualize_performance_comparison_missing_columns(df_missing_columns):
+    """
+    Tests if the visualization function raises a KeyError when essential columns (e.g., 'Metric', 'Method', 'Value')
+    are missing from the input DataFrame, as these are critical for plotting.
+    """
+    with pytest.raises(KeyError) as excinfo:
+        visualize_performance_comparison(df_missing_columns)
+    
+    # Check if the error message indicates one of the expected missing columns.
+    # The function is likely to access 'Metric', 'Method', or 'Value' first.
+    error_msg = str(excinfo.value)
+    assert any(col in error_msg for col in ['Metric', 'Method', 'Value', 'Iteration']), \
+        f"KeyError message did not indicate expected missing columns. Error: {error_msg}"
+
+
+def test_visualize_performance_comparison_invalid_input_type():
+    """
+    Tests if the visualization function raises a TypeError for non-DataFrame input,
+    ensuring type-safety for its 'results_df' argument.
+    """
+    with pytest.raises(TypeError):
+        visualize_performance_comparison(None)
+    with pytest.raises(TypeError):
+        visualize_performance_comparison([1, 2, 3])
+    with pytest.raises(TypeError):
+        visualize_performance_comparison("not a dataframe")
+    with pytest.raises(TypeError):
+        visualize_performance_comparison(123)
