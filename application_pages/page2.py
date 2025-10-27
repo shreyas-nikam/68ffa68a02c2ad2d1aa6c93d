@@ -1,9 +1,14 @@
-import random
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
+
+from .core import (
+    load_tasks,
+    generate_code_with_llm,
+    iterate_pbt_refinement,
+    iterate_tdd_refinement,
+)
 
 
 def _init_state():
@@ -16,16 +21,14 @@ def _init_state():
 
 
 def run_page2():
-    from .core import (
-        load_tasks,
-        generate_code_with_llm,
-        iterate_pbt_refinement,
-        iterate_tdd_refinement,
-    )
-
     _init_state()
     st.subheader("Refinement Playground")
-    st.markdown("Run iterative refinement using either Property-Based Testing (PBT) or example tests (TDD). The app collects per-iteration results and shows whether the candidate converges to a passing solution.")
+    st.markdown(
+        (
+            "Run iterative refinement using either Property-Based Testing (PBT) or example tests (TDD). "
+            "The app collects per-iteration results and shows whether the candidate converges to a passing solution."
+        )
+    )
 
     tasks, _ = load_tasks()
     task_options = [t["task_id"] for t in tasks]
@@ -44,7 +47,9 @@ def run_page2():
             help="PBT uses invariant properties over diverse inputs; TDD uses example assertions.",
         )
     with col3:
-        iterations = st.number_input("Iterations", min_value=1, max_value=25, value=int(st.session_state.iterations), step=1)
+        iterations = st.number_input(
+            "Iterations", min_value=1, max_value=25, value=int(st.session_state.iterations), step=1
+        )
 
     st.session_state.selected_task_id = selected_task_id
     st.session_state.method = method
@@ -91,8 +96,14 @@ def run_page2():
         st.download_button(
             label="Download final refined code",
             data=st.session_state.ref_final_code,
-            file_name=(task.get("entry_point", "solution") + "_refined.py"),
+            file_name=(task.get('entry_point', 'solution') + "_refined.py"),
             mime="text/x-python",
         )
 
-    st.markdown("Guidance: In PBT, we search a larger input space, approximating the condition $\\forall I \\in \\mathcal{D}$. In TDD, we focus on a labeled set $T_h = \\{(I_j, O_j)\\}$. Failure signals guide automatic heuristic repairs; your edits to the code can further improve outcomes.")
+    st.markdown(
+        (
+            "Guidance: In PBT, we search a larger input space, approximating the condition $\\forall I \\in \\mathcal{D}$. "
+            "In TDD, we focus on a labeled set $T_h = \\{(I_j, O_j)\\}$. Failure signals guide automatic heuristic repairs; "
+            "your edits to the code can further improve outcomes."
+        )
+    )
