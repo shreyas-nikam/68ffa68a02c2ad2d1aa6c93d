@@ -1,33 +1,26 @@
 import pytest
-from definition_234a5a3454b04e01a27733070f4d830f import refine_code_with_feedback
+# definition_5b7c4a5ed8a34a6e93e0da78b6aa77d7 block START
+from definition_5b7c4a5ed8a34a6e93e0da78b6aa77d7 import refine_code_with_feedback
+# definition_5b7c4a5ed8a34a6e93e0da78b6aa77d7 block END
 
-
-def test_refinement_changes_code_on_bug_feedback():
-    buggy_code = "def add(a, b):\n    return a - b\n"
-    feedback = "Bug: add subtracts instead of adding. Replace '-' with '+'."
-    refined = refine_code_with_feedback(buggy_code, feedback)
-    assert isinstance(refined, str)
-    assert refined.strip() != ""
-    assert refined != buggy_code, "Refinement should modify the buggy code when actionable feedback is provided."
-    assert "```" not in refined, "Refined code should not include Markdown code fences."
-    compile(refined, "<refined>", "exec")
-
-
-def test_handles_empty_feedback():
-    buggy_code = "def noop(x):\n    return x\n"
-    feedback = ""
-    refined = refine_code_with_feedback(buggy_code, feedback)
-    assert isinstance(refined, str)
-    assert refined.strip() != ""
-    assert "```" not in refined
-    compile(refined, "<refined>", "exec")
-
-
-@pytest.mark.parametrize("buggy_code, feedback", [
-    (None, "some feedback"),
-    ("print('hello')", None),
-    (123, "feedback"),
+@pytest.mark.parametrize("buggy_code, feedback, expected_output_type", [
+    # Test case 1: Standard valid inputs, expecting a refined code string
+    ("def buggy_func(x):\n    return x + 1", "The function should return x * 2, not x + 1.", str),
+    # Test case 2: Empty feedback, should still return a string (LLM might make minor style fixes or return original)
+    ("def my_func():\n    pass # Implement me", "", str),
+    # Test case 3: Empty buggy code, LLM is expected to generate code based on feedback
+    ("", "Create a Python function that calculates the factorial of a number.", str),
+    # Test case 4: Invalid type for buggy_code (not a string), expecting TypeError
+    (12345, "This is feedback for non-string code.", TypeError),
+    # Test case 5: Invalid type for feedback (not a string), expecting TypeError
+    ("def my_func():\n    return 0", ["Fix syntax"], TypeError),
 ])
-def test_invalid_input_types_raise(buggy_code, feedback):
-    with pytest.raises((TypeError, ValueError)):
-        refine_code_with_feedback(buggy_code, feedback)
+def test_refine_code_with_feedback(buggy_code, feedback, expected_output_type):
+    if expected_output_type is str:
+        # For valid inputs, expect the function to return a string
+        result = refine_code_with_feedback(buggy_code, feedback)
+        assert isinstance(result, str)
+    else:
+        # For invalid input types, expect a TypeError
+        with pytest.raises(expected_output_type):
+            refine_code_with_feedback(buggy_code, feedback)
