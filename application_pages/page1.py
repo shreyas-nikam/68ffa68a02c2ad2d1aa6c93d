@@ -2,14 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
-from .core import (
-    load_tasks,
-    generate_code_with_llm,
-    generate_property_checks,
-    generate_pbt_inputs,
-    run_tests,
-)
 
 
 def _init_state():
@@ -24,6 +16,14 @@ def _init_state():
 
 
 def run_page1():
+    from .core import (
+        load_tasks,
+        generate_code_with_llm,
+        generate_property_checks,
+        generate_pbt_inputs,
+        run_tests,
+    )
+
     _init_state()
     st.subheader("Task Explorer")
     st.caption("Browse tasks, generate initial code, inspect properties and tests, and run quick checks.")
@@ -41,16 +41,11 @@ def run_page1():
     st.code(task.get("prompt", ""))
 
     with st.expander("Math foundations and business logic", expanded=False):
-        st.markdown(
-            "In example-based TDD, we verify labeled examples $(I_j, O_j)$ such that $C(I_j)=O_j$. "
-            "In PBT, we verify that invariants hold for many inputs from a domain $\\mathcal{D}$."
-        )
+        st.markdown("In example-based TDD, we verify labeled examples $(I_j, O_j)$ such that $C(I_j)=O_j$. In PBT, we verify that invariants hold for many inputs from a domain $\\mathcal{D}$. ")
         st.latex(r"\\forall (I_j, O_j) \\in T_h,\\ C(I_j)=O_j")
         st.latex(r"\\forall I \\in \\mathcal{D},\\ P(C,I)=\\text{True}")
         st.latex(r"\\text{Pass} := \\bigwedge_i C(I_i)=O_i\\ \\wedge\\ \\bigwedge_k P_k(C, I_k)=\\text{True}")
-        st.markdown(
-            "Business rationale: PBT increases input diversity, reducing escaped defects and improving reliability metrics."
-        )
+        st.markdown("Business rationale: PBT increases input diversity, reducing escaped defects and improving reliability metrics.")
 
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
@@ -97,7 +92,7 @@ def run_page1():
         total = int(det.get("total_properties", 0))
         passed = int(det.get("passed_properties", 0))
         rate = (passed / total) if total else 0.0
-        st.metric("PBT pass rate", ("{:.2%}").format(rate))
+        st.metric("PBT pass rate", "{:.2%}".format(rate))
         st.write("Violations (sample):")
         viol = det.get("violations", []) if det else []
         dfv = pd.DataFrame(viol)
@@ -130,7 +125,4 @@ def run_page1():
         else:
             st.error("Some example tests failed.")
 
-    st.markdown(
-        "Tips: Toggle between PBT and TDD to see complementary perspectives on correctness. "
-        "Use the Refinement Playground to iterate and compare methods quantitatively."
-    )
+    st.markdown("Tips: Toggle between PBT and TDD to see complementary perspectives on correctness. Use the Refinement Playground to iterate and compare methods quantitatively.")
